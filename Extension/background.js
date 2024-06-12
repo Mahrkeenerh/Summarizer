@@ -22,7 +22,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                             },
                             body: JSON.stringify({ url: activeTab.url })
                         }).then(response => {
-                            console.log('response', response);
+                            // console.log('response', response);
                             const eventSource = new EventSource('http://localhost:5000/stream-summary');
 
                             eventSource.onmessage = (event) => {
@@ -59,7 +59,7 @@ function ensureSummaryDivCreated() {
     if (!summaryDiv) {
         const mainContainer = document.querySelector('.main.w-full.flex-grid--main-container-card.right-sidebar-xs');
         if (!mainContainer) {
-            console.error('Main container not found');
+            // console.error('Main container not found');
             return;
         }
 
