@@ -1,0 +1,3 @@
+[submodule "Server/RedditPostDownloader"]
+	path = Server/RedditPostDownloader
+	url = https://github.com/Mahrkeenerh/RedditPostDownloader

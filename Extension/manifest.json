@@ -1,0 +1,16 @@
+{
+    "manifest_version": 3,
+    "name": "Reddit Summarizer",
+    "version": "1.0",
+    "description": "Summarize Reddit posts with OpenAI",
+    "permissions": [
+        "activeTab",
+        "scripting"
+    ],
+    "action": {
+        "default_popup": "popup.html"
+    },
+    "background": {
+        "service_worker": "background.js"
+    }
+}
