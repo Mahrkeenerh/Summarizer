@@ -51,8 +51,7 @@ def stream_summarization():
     for chunk in response:
         yield f"data: {chunk.choices[0].delta.content or ''}\n\n"
 
-    yield f"data: \n \n\n"
-    yield f"data: Powered by {model}\n \n\n"
+    yield f"data: # Powered by {model}\n \n\n"
     response = None
 
 
