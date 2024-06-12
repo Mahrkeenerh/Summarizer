@@ -14,7 +14,8 @@ CORS(app)
 
 load_dotenv()
 client = OpenAI()
-enc = tiktoken.get_encoding("cl100k_base")
+# enc3 = tiktoken.get_encoding("cl100k_base")
+enc = tiktoken.get_encoding("o200k_base")
 
 
 response = None
@@ -22,6 +23,7 @@ def start_stream(html):
     global response
 
     user_content = "Summarize a reddit post. Start section headers with markdown marking. First, make a summary on the post itself. Then summarize the content of the most common comments, and finally, include a content summary of controversial or rare comments. If there are only a few comments, summarize them in a joint section. If there are zero comments, do not add comments summary.\n\n" + html
+    user_content = enc.decode(enc.encode(user_content)[:29000])
 
     # tokenized_len = len(enc.encode(user_content))
     # model = "gpt-3.5-turbo" if tokenized_len < 15000 else "gpt-4o"
