@@ -18,9 +18,10 @@ client = OpenAI()
 enc = tiktoken.get_encoding("o200k_base")
 
 
+model = None
 response = None
 def start_stream(html):
-    global response
+    global model, response
 
     user_content = "Summarize a reddit post. Start section headers with markdown marking. First, make a summary on the post itself. Then summarize the content of the most common comments, and finally, include a content summary of controversial or rare comments. If there are only a few comments, summarize them in a joint section. If there are zero comments, do not add comments summary.\n\n" + html
     user_content = enc.decode(enc.encode(user_content)[:29000])
@@ -50,6 +51,8 @@ def stream_summarization():
     for chunk in response:
         yield f"data: {chunk.choices[0].delta.content or ''}\n\n"
 
+    yield f"data: \n \n\n"
+    yield f"data: Powered by {model}\n \n\n"
     response = None
 
 
