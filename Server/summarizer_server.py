@@ -1,3 +1,4 @@
+import os
 from time import sleep
 
 from dotenv import load_dotenv
@@ -13,23 +14,23 @@ app = Flask(__name__)
 CORS(app)
 
 load_dotenv()
-client = OpenAI()
-# enc3 = tiktoken.get_encoding("cl100k_base")
-enc = tiktoken.get_encoding("o200k_base")
+client = OpenAI(
+    base_url='http://localhost:11434/v1',
+    api_key=os.environ['OPENAI_API_KEY']
+)
 
+enc = tiktoken.get_encoding("o200k_base")
 
 model = None
 response = None
+
 def start_stream(html):
     global model, response
 
     user_content = "Summarize a reddit post. Start section headers with markdown marking. First, make a summary on the post itself. Then summarize the content of the most common comments, and finally, include a content summary of the controversial or rare comments. If there are only a few comments, summarize them in a combined section instead. If there are zero comments, do not add any comment summaries.\n\n" + html
-    user_content = enc.decode(enc.encode(user_content)[:29000])
+    user_content = enc.decode(enc.encode(user_content)[:100000])
 
-    # tokenized_len = len(enc.encode(user_content))
-    # model = "gpt-3.5-turbo" if tokenized_len < 15000 else "gpt-4o"
-    # model = "gpt-4o"
-    model = "gpt-4o-mini"
+    model = "qwen2.5:14b-instruct-q6_K"
     print(f"Using model: {model}")
 
     response = client.chat.completions.create(
