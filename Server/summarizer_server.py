@@ -28,7 +28,8 @@ def start_stream(html):
 
     # tokenized_len = len(enc.encode(user_content))
     # model = "gpt-3.5-turbo" if tokenized_len < 15000 else "gpt-4o"
-    model = "gpt-4o"
+    # model = "gpt-4o"
+    model = "gpt-4o-mini"
     print(f"Using model: {model}")
 
     response = client.chat.completions.create(
@@ -71,4 +72,4 @@ def stream_summary():
 
 
 if __name__ == '__main__':
-    app.run(port=5000, threaded=True)
+    app.run(debug=True, port=5000, threaded=True)
