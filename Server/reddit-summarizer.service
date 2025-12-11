@@ -1,0 +1,18 @@
+[Unit]
+Description=Reddit Summarizer Server
+After=network.target llama-cpp-server.service
+Wants=llama-cpp-server.service
+
+[Service]
+Type=simple
+User=samo
+WorkingDirectory=/home/samo/Data/Programs/Extensions/Summarizer/Server
+Environment="PATH=/home/samo/Data/Programs/Extensions/Summarizer/Server/venv/bin"
+ExecStart=/home/samo/Data/Programs/Extensions/Summarizer/Server/venv/bin/python summarizer_server.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

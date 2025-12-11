@@ -1,43 +1,59 @@
-<!-- https://platform.openai.com/api-keys -->
+# Reddit Summarizer
 
-# Reddit Thread Summarizer
+Chrome extension that summarizes Reddit threads using local LLMs via llama.cpp.
 
-Summarize a Reddit thread using OpenAI's API models.
+## Architecture
 
-
-## Installation
-
-### RedditPostDownloader
-
-Follow the instructions in the [RedditPostDownloader](https://github.com/Mahrkeenerh/RedditPostDownloader/).
-
-### Dependencies
-
-Clone the repository and install the dependencies:
-
-```bash
-python -m pip install -r requirements.txt
+```
+Chrome Extension → Flask Server (port 5000) → llama-cpp-server (port 8080)
 ```
 
-### OpenAI API Key
+## Prerequisites
 
-Create a `.env` file in the [Server](./Server) directory and add your OpenAI API key (https://platform.openai.com/api-keys):
+- Python 3.8+
+- llama-cpp-server running on port 8080
+- Reddit API credentials
+
+## Setup
 
 ```bash
-OPENAI_API_KEY=your-api-key
+# Server
+cd Server
+./setup.sh
+
+# Configure Reddit API (https://www.reddit.com/prefs/apps)
+cp RedditPostDownloader/config.yml.example RedditPostDownloader/config.yml
+# Edit config.yml with your credentials
+
+# Install systemd service
+sudo cp reddit-summarizer.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable reddit-summarizer
+sudo systemctl start reddit-summarizer
+
+# Chrome extension
+# Load unpacked extension from Extension/ directory
 ```
-
-### Chrome Extension
-
-Enable developer mode in Chrome and load unpacked extension from the [Extension](./Extension) directory.
-
 
 ## Usage
 
-Run the server:
+Click extension icon on any Reddit thread → Summary appears at top of page
+
+## Configuration
+
+`Server/summarizer_server.py`:
+- Change `base_url` to point to your llama-cpp-server
+- Change `model` to match your llama-cpp-server config
+
+## Troubleshooting
 
 ```bash
-python Server/app.py
-```
+# Check server status
+sudo systemctl status reddit-summarizer
 
-Open a Reddit thread and click on the extension icon -> button to summarize the thread.
+# View logs
+sudo journalctl -u reddit-summarizer -f
+
+# Check llama-cpp-server
+curl http://localhost:8080/health
+```
