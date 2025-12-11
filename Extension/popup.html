@@ -84,28 +84,16 @@
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
         }
 
-        #status {
-            font-size: 13px;
-            text-align: center;
-            padding: 8px;
-            border-radius: 6px;
-            background: rgba(255, 255, 255, 0.1);
+        button.success {
+            background: #4CAF50;
+            border-color: #4CAF50;
             color: #FFFFFF;
-            display: none;
         }
 
-        #status.active {
-            display: block;
-        }
-
-        #status.error {
-            background: rgba(255, 69, 0, 0.3);
-            border: 1px solid #FF4500;
-        }
-
-        #status.success {
-            background: rgba(255, 255, 255, 0.15);
-            border: 1px solid #FFFFFF;
+        button.error {
+            background: #FF4500;
+            border-color: #FF4500;
+            color: #FFFFFF;
         }
 
         .footer {
@@ -129,8 +117,6 @@
         </div>
 
         <button id="summarize-button">Summarize This Thread</button>
-
-        <div id="status"></div>
 
         <div class="footer">
             Powered by llama.cpp

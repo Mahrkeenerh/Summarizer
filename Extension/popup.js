@@ -1,37 +1,35 @@
 document.getElementById('summarize-button').addEventListener('click', () => {
-    const status = document.getElementById('status');
     const button = document.getElementById('summarize-button');
+    const defaultText = 'Summarize This Thread';
 
     // Show loading state
-    status.textContent = 'Generating summary...';
-    status.className = 'active';
     button.disabled = true;
     button.textContent = 'Processing...';
+    button.className = '';
 
     // Send message to background script
     chrome.runtime.sendMessage({ action: 'summarize' }, (response) => {
         button.disabled = false;
-        button.textContent = 'Summarize This Thread';
 
         if (response && response.success) {
             if (response.message === 'Summary already exists') {
-                status.textContent = 'Summary already exists!';
-                status.className = 'active success';
+                button.textContent = 'Already exists!';
             } else {
-                status.textContent = 'Summary added to page!';
-                status.className = 'active success';
+                button.textContent = 'Done!';
             }
+            button.className = 'success';
         } else if (response && response.error) {
-            status.textContent = `Error: ${response.error}`;
-            status.className = 'active error';
+            button.textContent = 'Error!';
+            button.className = 'error';
         } else {
-            status.textContent = 'Server not responding. Check if server is running.';
-            status.className = 'active error';
+            button.textContent = 'Server offline';
+            button.className = 'error';
         }
 
-        // Hide status after 4 seconds
+        // Reset button after 2 seconds
         setTimeout(() => {
-            status.className = '';
-        }, 4000);
+            button.textContent = defaultText;
+            button.className = '';
+        }, 2000);
     });
 });
