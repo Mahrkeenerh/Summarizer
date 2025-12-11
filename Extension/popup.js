@@ -1,6 +1,6 @@
 document.getElementById('summarize-button').addEventListener('click', () => {
     const button = document.getElementById('summarize-button');
-    const defaultText = 'Summarize This Thread';
+    const defaultText = 'Summarize This Page';
 
     // Show loading state
     button.disabled = true;

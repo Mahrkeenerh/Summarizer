@@ -1,59 +1,70 @@
-# Reddit Summarizer
+# Web Summarizer
 
-Chrome extension that summarizes Reddit threads using local LLMs via llama.cpp.
+Chrome extension that summarizes web pages and Reddit threads using local LLMs via llama.cpp.
 
-## Architecture
+## How It Works
 
-```
-Chrome Extension → Flask Server (port 5000) → llama-cpp-server (port 8080)
-```
-
-## Prerequisites
-
-- Python 3.8+
-- llama-cpp-server running on port 8080
-- Reddit API credentials
+- **Reddit**: Server fetches post + comments using Reddit API
+- **Web pages**: Extension extracts article content using Mozilla Readability (same as Firefox Reader View)
+- **Summarization**: Local LLM via llama-cpp-server generates summary
+- Summary appears at top of page with delete button
 
 ## Setup
 
+### 1. Server
 ```bash
-# Server
 cd Server
 ./setup.sh
 
 # Configure Reddit API (https://www.reddit.com/prefs/apps)
 cp RedditPostDownloader/config.yml.example RedditPostDownloader/config.yml
-# Edit config.yml with your credentials
+# Edit config.yml with your Reddit API credentials
 
 # Install systemd service
-sudo cp reddit-summarizer.service /etc/systemd/system/
+sudo cp web-summarizer.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable reddit-summarizer
-sudo systemctl start reddit-summarizer
-
-# Chrome extension
-# Load unpacked extension from Extension/ directory
+sudo systemctl enable web-summarizer
+sudo systemctl start web-summarizer
 ```
+
+### 2. Extension
+1. Open `chrome://extensions/`
+2. Enable "Developer mode"
+3. Click "Load unpacked"
+4. Select the `Extension/` directory
+
+### 3. Configuration
+Edit `Server/summarizer_server.py`:
+- `base_url`: Your llama-cpp-server URL (default: `http://localhost:8080/v1`)
+- `model`: Model name matching your llama-cpp-server config
+
+## Requirements
+
+- Python 3.8+
+- llama-cpp-server running on port 8080
+- Reddit API credentials (for Reddit posts only)
+- Chrome/Chromium browser
 
 ## Usage
 
-Click extension icon on any Reddit thread → Summary appears at top of page
+Click the extension icon → Summary appears at top of page
 
-## Configuration
-
-`Server/summarizer_server.py`:
-- Change `base_url` to point to your llama-cpp-server
-- Change `model` to match your llama-cpp-server config
+Remove summary by clicking the "Remove Summary" button below it
 
 ## Troubleshooting
 
+**Server issues:**
 ```bash
-# Check server status
-sudo systemctl status reddit-summarizer
+sudo systemctl status web-summarizer
+sudo journalctl -u web-summarizer -f
+```
 
-# View logs
-sudo journalctl -u reddit-summarizer -f
-
-# Check llama-cpp-server
+**LLM not responding:**
+```bash
 curl http://localhost:8080/health
 ```
+
+**Page not extracting:**
+- Works best on article-like content
+- Some pages with paywalls/anti-scraping may fail
+- Reddit posts always work (uses API)

@@ -15,19 +15,66 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     return;
                 }
 
-                // Summary doesn't exist - create div and start summarization
+                // Summary doesn't exist - inject Readability library first, then extract content
                 chrome.scripting.executeScript({
                     target: { tabId: activeTab.id },
-                    function: ensureSummaryDivCreated,
+                    files: ['Readability.js']
                 }, () => {
-                    // After ensuring summaryDiv's existence, proceed with the fetch request
-                    fetch('http://localhost:5000/start-scrape-summarize', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ url: activeTab.url })
-                    }).then(response => {
+                    chrome.scripting.executeScript({
+                        target: { tabId: activeTab.id },
+                        function: extractPageContent,
+                    }, (extractionResults) => {
+                        if (!extractionResults || !extractionResults[0]) {
+                            console.error('Script injection failed');
+                            sendResponse({ success: false, error: 'Script injection failed' });
+                            return;
+                        }
+
+                        const pageData = extractionResults[0].result;
+
+                        // Check if extraction failed
+                        if (!pageData) {
+                            console.error('Failed to extract page content - page may not be readable');
+                            // Create summary div and show error
+                            chrome.scripting.executeScript({
+                                target: { tabId: activeTab.id },
+                                function: ensureSummaryDivCreated,
+                            }, () => {
+                            chrome.scripting.executeScript({
+                                target: { tabId: activeTab.id },
+                                function: displayError,
+                                args: ['This page does not appear to have readable article content. Try a different page with article-like content.']
+                            }, () => {
+                                chrome.scripting.executeScript({
+                                    target: { tabId: activeTab.id },
+                                    function: addDeleteButton
+                                });
+                            });
+                        });
+                            sendResponse({ success: false, error: 'Page not readable' });
+                            return;
+                        }
+
+                        console.log('Extracted page data:', { type: pageData.type, contentLength: pageData.content ? pageData.content.length : 'N/A' });
+
+                        // Create summary div
+                        chrome.scripting.executeScript({
+                            target: { tabId: activeTab.id },
+                            function: ensureSummaryDivCreated,
+                        }, () => {
+                            // Prepare request data
+                            const requestData = pageData.type === 'reddit'
+                                ? { url: pageData.url }  // Let server fetch Reddit content
+                                : pageData;              // Send extracted content for general pages
+
+                            // Send to server
+                            fetch('http://localhost:5000/start-scrape-summarize', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                            body: JSON.stringify(requestData)
+                        }).then(async response => {
                         if (response.ok) {
                             sendResponse({ success: true });
                             const eventSource = new EventSource('http://localhost:5000/stream-summary');
@@ -43,6 +90,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                                         target: { tabId: activeTab.id },
                                         function: displaySummaryChunk,
                                         args: [summaryChunk]
+                                    }, () => {
+                                        // Add delete button after summary is complete
+                                        chrome.scripting.executeScript({
+                                            target: { tabId: activeTab.id },
+                                            function: addDeleteButton
+                                        });
                                     });
                                     eventSource.close();
                                     return;
@@ -60,10 +113,42 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                                 eventSource.close();
                             };
                         } else {
-                            sendResponse({ success: false, error: 'Server error' });
+                            // Get error message from server
+                            const errorText = await response.text();
+                            console.error('Server error:', errorText);
+
+                            // Display error in the summary div
+                            chrome.scripting.executeScript({
+                                target: { tabId: activeTab.id },
+                                function: displayError,
+                                args: [errorText || 'Failed to extract content from this page']
+                            }, () => {
+                                chrome.scripting.executeScript({
+                                    target: { tabId: activeTab.id },
+                                    function: addDeleteButton
+                                });
+                            });
+
+                            sendResponse({ success: false, error: errorText || 'Server error' });
                         }
                     }).catch(error => {
+                        console.error('Fetch error:', error);
+
+                        // Display error in the summary div
+                        chrome.scripting.executeScript({
+                            target: { tabId: activeTab.id },
+                            function: displayError,
+                            args: [error.message || 'Connection error']
+                        }, () => {
+                            chrome.scripting.executeScript({
+                                target: { tabId: activeTab.id },
+                                function: addDeleteButton
+                            });
+                        });
+
                         sendResponse({ success: false, error: error.message });
+                    });
+                    });
                     });
                 });
             });
@@ -75,7 +160,56 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // This function remains as is
 function checkSummaryDivPresence() {
     const summaryDiv = document.getElementById('summary-div');
-    return !!summaryDiv;
+    return !!(summaryDiv);
+}
+
+// Extract page content using Mozilla Readability for general pages
+function extractPageContent() {
+    // For Reddit pages - let server handle it
+    if (window.location.hostname.includes('reddit.com')) {
+        return {
+            type: 'reddit',
+            url: window.location.href
+        };
+    }
+
+    // For general web pages - use Mozilla Readability
+    try {
+        // Clone document to avoid modifying the actual page
+        const documentClone = document.cloneNode(true);
+
+        // Use Readability to extract article content
+        const reader = new Readability(documentClone);
+        const article = reader.parse();
+
+        if (article && article.content) {
+            // Validate content has meaningful text (not just HTML tags)
+            const textContent = article.textContent || article.content.replace(/<[^>]*>/g, '');
+            const textLength = textContent.trim().length;
+
+            console.log(`Extracted content: ${article.content.length} chars HTML, ${textLength} chars text`);
+
+            if (textLength < 100) {
+                console.warn('Content too short, may not be a proper article');
+                return null;
+            }
+
+            return {
+                type: 'general',
+                content: article.content,
+                url: window.location.href,
+                title: article.title || document.title,
+                textLength: textLength
+            };
+        } else {
+            // Readability failed - return error indicator
+            console.warn('Readability parse failed - no article content found');
+            return null;
+        }
+    } catch (error) {
+        console.error('Readability error:', error);
+        return null;
+    }
 }
 
 // New function to ensure creation of the summaryDiv
@@ -84,18 +218,6 @@ function ensureSummaryDivCreated() {
     let summaryDiv = document.getElementById(summaryDivId);
 
     if (!summaryDiv) {
-        // Try multiple selectors for different Reddit layouts
-        const mainContainer =
-            document.querySelector('shreddit-post') ||
-            document.querySelector('[slot="post-container"]') ||
-            document.querySelector('main') ||
-            document.querySelector('#main-content');
-
-        if (!mainContainer) {
-            console.error('Main container not found');
-            return;
-        }
-
         summaryDiv = document.createElement('div');
         summaryDiv.id = summaryDivId;
         summaryDiv.style.cssText = `
@@ -108,8 +230,41 @@ function ensureSummaryDivCreated() {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         `;
 
-        // Insert before the post
-        mainContainer.parentNode.insertBefore(summaryDiv, mainContainer);
+        // Determine where to insert based on page structure
+        let insertionPoint = null;
+        let insertBefore = true;
+
+        // Try Reddit-specific selectors first
+        const redditPost = document.querySelector('shreddit-post') ||
+            document.querySelector('[slot="post-container"]');
+
+        if (redditPost) {
+            // Reddit page - insert before post
+            insertionPoint = redditPost;
+        } else {
+            // General webpage - try to find article or main content
+            const article = document.querySelector('article');
+            const main = document.querySelector('main');
+            const content = document.querySelector('#content, .content, #main-content, .main-content');
+
+            insertionPoint = article || main || content;
+        }
+
+        // Insert the summary div
+        if (insertionPoint && insertionPoint.parentNode) {
+            if (insertBefore) {
+                insertionPoint.parentNode.insertBefore(summaryDiv, insertionPoint);
+            } else {
+                insertionPoint.insertBefore(summaryDiv, insertionPoint.firstChild);
+            }
+        } else {
+            // Fallback: insert at the top of body
+            if (document.body.firstChild) {
+                document.body.insertBefore(summaryDiv, document.body.firstChild);
+            } else {
+                document.body.appendChild(summaryDiv);
+            }
+        }
     }
 }
 
@@ -254,5 +409,119 @@ function displaySummaryChunk(chunk) {
             `;
             summaryDiv.appendChild(p);
         }
+    }
+}
+
+function displayError(errorMessage) {
+    const summaryDivId = 'summary-div';
+    let summaryDiv = document.getElementById(summaryDivId);
+
+    if (!summaryDiv) {
+        console.error('Summary div not found');
+        return;
+    }
+
+    // Clear any existing content
+    summaryDiv.innerHTML = '';
+
+    // Add error header
+    const header = document.createElement('h2');
+    header.textContent = '⚠️ Extraction Failed';
+    header.style.cssText = `
+        color: #FF4500;
+        font-size: 18px;
+        font-weight: 600;
+        margin: 0 0 12px 0;
+        padding-bottom: 8px;
+        border-bottom: 2px solid #FF4500;
+    `;
+    summaryDiv.appendChild(header);
+
+    // Add error message
+    const p = document.createElement('p');
+    p.textContent = errorMessage;
+    p.style.cssText = `
+        margin: 12px 0;
+        line-height: 1.8;
+        color: #FFFFFF;
+    `;
+    summaryDiv.appendChild(p);
+
+    // Add suggestion
+    const suggestion = document.createElement('p');
+    suggestion.textContent = 'This page may require JavaScript, block automated access, or have limited text content. Try a different page or Reddit post.';
+    suggestion.style.cssText = `
+        margin: 12px 0;
+        line-height: 1.8;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 14px;
+        font-style: italic;
+    `;
+    summaryDiv.appendChild(suggestion);
+}
+
+// Add delete button below the summary div
+function addDeleteButton() {
+    const summaryDiv = document.getElementById('summary-div');
+    if (!summaryDiv) {
+        console.error('Summary div not found');
+        return;
+    }
+
+    // Check if button already exists
+    if (document.getElementById('summary-delete-btn')) {
+        return;
+    }
+
+    // Create button container (outside the border)
+    const buttonContainer = document.createElement('div');
+    buttonContainer.id = 'summary-delete-btn-container';
+    buttonContainer.style.cssText = `
+        text-align: center;
+        margin: 10px 20px;
+    `;
+
+    // Create delete button
+    const deleteBtn = document.createElement('button');
+    deleteBtn.id = 'summary-delete-btn';
+    deleteBtn.textContent = '✕ Remove Summary';
+    deleteBtn.style.cssText = `
+        background: #FF4500;
+        color: #FFFFFF;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        transition: all 0.2s ease;
+    `;
+
+    // Hover effects
+    deleteBtn.onmouseover = () => {
+        deleteBtn.style.background = '#CC3700';
+        deleteBtn.style.transform = 'scale(1.05)';
+    };
+    deleteBtn.onmouseout = () => {
+        deleteBtn.style.background = '#FF4500';
+        deleteBtn.style.transform = 'scale(1)';
+    };
+
+    // Click handler
+    deleteBtn.onclick = () => {
+        const summaryDiv = document.getElementById('summary-div');
+        const buttonContainer = document.getElementById('summary-delete-btn-container');
+        if (summaryDiv) summaryDiv.remove();
+        if (buttonContainer) buttonContainer.remove();
+    };
+
+    buttonContainer.appendChild(deleteBtn);
+
+    // Insert after summary div
+    if (summaryDiv.nextSibling) {
+        summaryDiv.parentNode.insertBefore(buttonContainer, summaryDiv.nextSibling);
+    } else {
+        summaryDiv.parentNode.appendChild(buttonContainer);
     }
 }

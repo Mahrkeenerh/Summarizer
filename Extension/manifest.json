@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
-    "name": "Reddit Summarizer",
+    "name": "Web Summarizer",
     "version": "1.0",
-    "description": "Summarize Reddit posts with AI",
+    "description": "Summarize web pages and Reddit posts with AI",
     "permissions": [
         "activeTab",
         "scripting"

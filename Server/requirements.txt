@@ -3,3 +3,4 @@ Flask-Cors>=6.0.1
 openai>=2.9.0
 python-dotenv>=1.2.1
 tiktoken>=0.12.0
+trafilatura>=2.0.0
