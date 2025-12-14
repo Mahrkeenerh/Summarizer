@@ -106,7 +106,15 @@ def start_stream(html):
         + "Skip any section if there is no relevant content. Do not add titles, introductions, or extra headers.\n\n"
         + html
     )
-    user_content = enc.decode(enc.encode(user_content)[:100000])
+    # Trim content to fit 16k context limit (using 12k to be safe)
+    # Reserve tokens for: system message (~40), instructions (~100), response (~3500)
+    encoded = enc.encode(user_content)
+    max_tokens = 12000
+    was_truncated = len(encoded) > max_tokens
+    user_content = enc.decode(encoded[:max_tokens])
+
+    if was_truncated:
+        user_content += "\n\n---\n[Content truncated to fit context size limits]"
 
     print(f"Using model: {model}")
 
