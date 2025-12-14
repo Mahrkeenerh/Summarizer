@@ -19,8 +19,7 @@ client = OpenAI(base_url="http://localhost:8080/v1", api_key="not-needed")
 
 enc = tiktoken.get_encoding("o200k_base")
 
-# model = "qwen3-14b-q6_K"  # Update to match your llama-cpp-server config.json
-model = "Qwen3-8B-Q6_K"  # Update to match your llama-cpp-server config.json
+model = "Qwen3-8B-Q8_0"  # 8B model with Q8 quantization
 response = None
 
 
