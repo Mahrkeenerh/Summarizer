@@ -222,13 +222,34 @@ def start_scrape_summarize():
         # Fallback to server-side extraction for Reddit only
         if is_reddit_url(url):
             print(f"Extracting Reddit post from server: {url}")
-            html, submission = ra.scrape_url(url)
+            try:
+                html, submission = ra.scrape_url(url)
+            except Exception as e:
+                error_msg = f"Failed to fetch Reddit post: {str(e)}"
+                print(f"ERROR: {error_msg}")
+                return Response(status=500, response=error_msg, content_type='text/plain')
         else:
             error_msg = "Non-Reddit URLs must be extracted by the extension"
             print(f"ERROR: {error_msg}")
-            return Response(status=400, response=error_msg)
+            return Response(status=400, response=error_msg, content_type='text/plain')
 
-    start_stream(html)
+    if not html:
+        error_msg = "No content extracted from the page"
+        print(f"ERROR: {error_msg}")
+        return Response(status=400, response=error_msg, content_type='text/plain')
+
+    try:
+        start_stream(html)
+    except Exception as e:
+        error_msg = str(e)
+        # Extract cleaner error message from OpenAI-style errors
+        if "{'error':" in error_msg:
+            import re
+            match = re.search(r"'error':\s*'([^']+)'", error_msg)
+            if match:
+                error_msg = match.group(1)
+        print(f"ERROR starting stream: {error_msg}")
+        return Response(status=500, response=error_msg, content_type='text/plain')
 
     return Response(status=200)
 

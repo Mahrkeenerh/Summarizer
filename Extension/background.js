@@ -424,9 +424,26 @@ function displayError(errorMessage) {
     // Clear any existing content
     summaryDiv.innerHTML = '';
 
+    // Determine error type and appropriate header/suggestion
+    const isServerError = errorMessage.includes('llama') || errorMessage.includes('model') || errorMessage.includes('load');
+    const isConnectionError = errorMessage === 'Failed to fetch' || errorMessage.includes('NetworkError') || errorMessage.includes('Connection');
+
+    let headerText = 'Summarization Failed';
+    let suggestionText = '';
+
+    if (isConnectionError) {
+        headerText = 'Connection Error';
+        suggestionText = 'Could not connect to the summarization server. Make sure the server is running on localhost:5000.';
+    } else if (isServerError) {
+        headerText = 'Server Error';
+        suggestionText = 'The LLM backend encountered an error. Check if the model is loaded correctly.';
+    } else {
+        suggestionText = 'This page may require JavaScript, block automated access, or have limited text content. Try a different page.';
+    }
+
     // Add error header
     const header = document.createElement('h2');
-    header.textContent = '⚠️ Extraction Failed';
+    header.textContent = headerText;
     header.style.cssText = `
         color: #FF4500;
         font-size: 18px;
@@ -448,16 +465,18 @@ function displayError(errorMessage) {
     summaryDiv.appendChild(p);
 
     // Add suggestion
-    const suggestion = document.createElement('p');
-    suggestion.textContent = 'This page may require JavaScript, block automated access, or have limited text content. Try a different page or Reddit post.';
-    suggestion.style.cssText = `
-        margin: 12px 0;
-        line-height: 1.8;
-        color: rgba(255, 255, 255, 0.7);
-        font-size: 14px;
-        font-style: italic;
-    `;
-    summaryDiv.appendChild(suggestion);
+    if (suggestionText) {
+        const suggestion = document.createElement('p');
+        suggestion.textContent = suggestionText;
+        suggestion.style.cssText = `
+            margin: 12px 0;
+            line-height: 1.8;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 14px;
+            font-style: italic;
+        `;
+        summaryDiv.appendChild(suggestion);
+    }
 }
 
 // Add delete button below the summary div
