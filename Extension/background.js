@@ -508,13 +508,17 @@ function addDeleteButton() {
         background: #FF4500;
         color: #FFFFFF;
         border: none;
-        padding: 8px 16px;
+        padding: 10px 20px;
         border-radius: 6px;
         cursor: pointer;
         font-size: 14px;
         font-weight: 600;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
     `;
 
     // Hover effects
