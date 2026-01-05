@@ -1,3 +1,4 @@
+import logging
 import os
 from time import sleep
 
@@ -10,6 +11,14 @@ import trafilatura
 
 import RedditPostDownloader.RedditArchiver as ra
 
+
+class HealthCheckFilter(logging.Filter):
+    def filter(self, record):
+        return '/health' not in record.getMessage()
+
+
+# Suppress health endpoint logging
+logging.getLogger('werkzeug').addFilter(HealthCheckFilter())
 
 app = Flask(__name__)
 CORS(app)
