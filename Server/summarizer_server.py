@@ -202,6 +202,11 @@ def stream_summarization():
     response = None
 
 
+@app.route('/health')
+def health():
+    return {'status': 'ok'}
+
+
 @app.route('/start-scrape-summarize', methods=['POST'])
 def start_scrape_summarize():
     data = request.json
