@@ -9,31 +9,34 @@ Chrome extension that summarizes web pages and Reddit threads using local LLMs v
 - **Summarization**: Local LLM via llama-cpp-server generates summary
 - Summary appears at top of page with delete button
 
-## Setup
+## Installation
 
 ### 1. Server
+
 ```bash
-cd Server
-./setup.sh
+# Install and configure
+./install.sh
 
-# Configure Reddit API (https://www.reddit.com/prefs/apps)
-cp RedditPostDownloader/config.yml.example RedditPostDownloader/config.yml
-# Edit config.yml with your Reddit API credentials
+# Configure Reddit API (optional, for Reddit posts)
+cp Server/RedditPostDownloader/config.yml.example Server/RedditPostDownloader/config.yml
+# Edit config.yml with your Reddit API credentials from https://www.reddit.com/prefs/apps
 
-# Install systemd service
-sudo cp web-summarizer.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable web-summarizer
-sudo systemctl start web-summarizer
+# Start the service
+systemctl --user start web-summarizer
+
+# Enable on login (optional)
+systemctl --user enable web-summarizer
 ```
 
 ### 2. Extension
+
 1. Open `chrome://extensions/`
 2. Enable "Developer mode"
 3. Click "Load unpacked"
 4. Select the `Extension/` directory
 
 ### 3. Configuration
+
 Edit `Server/summarizer_server.py`:
 - `base_url`: Your llama-cpp-server URL (default: `http://localhost:8080/v1`)
 - `model`: Model name matching your llama-cpp-server config
@@ -47,16 +50,37 @@ Edit `Server/summarizer_server.py`:
 
 ## Usage
 
-Click the extension icon → Summary appears at top of page
+Click the extension icon - summary appears at top of page.
 
-Remove summary by clicking the "Remove Summary" button below it
+Remove summary by clicking the "Remove Summary" button below it.
+
+## Service Management
+
+```bash
+# Start/stop/restart
+systemctl --user start web-summarizer
+systemctl --user stop web-summarizer
+systemctl --user restart web-summarizer
+
+# View logs
+journalctl --user -u web-summarizer -f
+
+# Check status
+systemctl --user status web-summarizer
+
+# Reinstall/update
+./install.sh
+
+# Uninstall
+./uninstall.sh
+```
 
 ## Troubleshooting
 
 **Server issues:**
 ```bash
-sudo systemctl status web-summarizer
-sudo journalctl -u web-summarizer -f
+systemctl --user status web-summarizer
+journalctl --user -u web-summarizer -f
 ```
 
 **LLM not responding:**
@@ -68,3 +92,5 @@ curl http://localhost:8080/health
 - Works best on article-like content
 - Some pages with paywalls/anti-scraping may fail
 - Reddit posts always work (uses API)
+
+See [AGENT.md](AGENT.md) for detailed troubleshooting.

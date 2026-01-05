@@ -1,0 +1,29 @@
+{
+  "name": "Web Summarizer",
+  "version": "1.0.0",
+  "description": "Chrome extension backend that summarizes web pages and Reddit threads using local LLMs",
+  "type": "user-service",
+
+  "systemd": {
+    "unit": "systemd/web-summarizer.service",
+    "timer": null,
+    "service_name": "web-summarizer.service"
+  },
+
+  "network": {
+    "port": 5000,
+    "health": "/health"
+  },
+
+  "paths": {
+    "config": "Server/.env",
+    "logs": "journalctl",
+    "install": "install.sh",
+    "uninstall": "uninstall.sh"
+  },
+
+  "ui": {
+    "icon": "📝",
+    "category": "AI"
+  }
+}
