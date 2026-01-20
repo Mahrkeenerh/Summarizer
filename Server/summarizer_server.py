@@ -90,11 +90,13 @@ def extract_general_webpage(url):
         return None, None
 
 
-def start_stream(html):
+def start_stream(html, question=""):
     global response
 
     # Log content length for debugging
     print(f"Received HTML content length: {len(html)} characters")
+    if question:
+        print(f"User question: {question}")
 
     # Strip HTML tags to get text content for validation
     import re
@@ -106,15 +108,28 @@ def start_stream(html):
     if text_length < 100:
         print("WARNING: Very short content detected, summary may be poor quality")
 
-    user_content = (
-        "/no_think\n\nSummarize the content below. Use ONLY ## for section headers (no other header levels). "
-        + "For pages WITH comments: Create sections for ## Post Summary, ## Common Comments, and ## Controversial Comments. "
-        + "If there are only a few comments, use a single ## Comments section instead. "
-        + "For pages WITHOUT comments (articles, blogs, etc.), or with NO comments: Create only ## Summary section with the main content. "
-        + "Do NOT create comment sections if there are no comments. "
-        + "Skip any section if there is no relevant content. Do not add titles, introductions, or extra headers.\n\n"
-        + html
-    )
+    # Build prompt based on whether a question is provided
+    # Thinking is always enabled (no /no_think prefix)
+    if question:
+        # Question-focused mode
+        user_content = (
+            f"The user has a question about this content: {question}\n\n"
+            "Answer the question based on the content below. Use ## Answer as your main section header. "
+            "If relevant context from the page helps explain your answer, include it. "
+            "Be thorough but concise.\n\n"
+            + html
+        )
+    else:
+        # Regular summary mode
+        user_content = (
+            "Summarize the content below. Use ONLY ## for section headers (no other header levels). "
+            + "For pages WITH comments: Create sections for ## Post Summary, ## Common Comments, and ## Controversial Comments. "
+            + "If there are only a few comments, use a single ## Comments section instead. "
+            + "For pages WITHOUT comments (articles, blogs, etc.), or with NO comments: Create only ## Summary section with the main content. "
+            + "Do NOT create comment sections if there are no comments. "
+            + "Skip any section if there is no relevant content. Do not add titles, introductions, or extra headers.\n\n"
+            + html
+        )
     # Trim content to fit 16k context limit (using 12k to be safe)
     # Reserve tokens for: system message (~40), instructions (~100), response (~3500)
     encoded = enc.encode(user_content)
@@ -220,6 +235,7 @@ def health():
 def start_scrape_summarize():
     data = request.json
     url = data.get("url")
+    question = data.get("question", "")
 
     # Check if content was already extracted by the extension
     if "content" in data:
@@ -253,7 +269,7 @@ def start_scrape_summarize():
         return Response(status=400, response=error_msg, content_type='text/plain')
 
     try:
-        start_stream(html)
+        start_stream(html, question)
     except Exception as e:
         error_msg = str(e)
         # Extract cleaner error message from OpenAI-style errors

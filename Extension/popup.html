@@ -96,6 +96,29 @@
             color: #FFFFFF;
         }
 
+        textarea {
+            width: 100%;
+            padding: 12px;
+            font-size: 14px;
+            font-family: inherit;
+            color: #FFFFFF;
+            background: #444444;
+            border: 2px solid #555555;
+            border-radius: 8px;
+            resize: vertical;
+            min-height: 60px;
+            box-sizing: border-box;
+        }
+
+        textarea::placeholder {
+            color: #AAAAAA;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #FF4500;
+        }
+
         .footer {
             text-align: center;
             font-size: 11px;
@@ -116,7 +139,11 @@
             </div>
         </div>
 
-        <button id="summarize-button">Summarize This Page</button>
+        <textarea id="question-input"
+                  placeholder="Ask a question about this page (optional)"
+                  rows="2"></textarea>
+
+        <button id="summarize-button">Summarize Page</button>
 
         <div class="footer">
             Powered by llama.cpp

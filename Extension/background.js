@@ -62,10 +62,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                             target: { tabId: activeTab.id },
                             function: ensureSummaryDivCreated,
                         }, () => {
-                            // Prepare request data
+                            // Prepare request data with optional question
+                            const question = request.question || '';
                             const requestData = pageData.type === 'reddit'
-                                ? { url: pageData.url }  // Let server fetch Reddit content
-                                : pageData;              // Send extracted content for general pages
+                                ? { url: pageData.url, question: question }  // Let server fetch Reddit content
+                                : { ...pageData, question: question };       // Send extracted content for general pages
 
                             // Send to server
                             fetch('http://localhost:5000/start-scrape-summarize', {
