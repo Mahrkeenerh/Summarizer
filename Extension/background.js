@@ -64,9 +64,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         }, () => {
                             // Prepare request data with optional question
                             const question = request.question || '';
+                            const requestId = crypto.randomUUID();
                             const requestData = pageData.type === 'reddit'
-                                ? { url: pageData.url, question: question }  // Let server fetch Reddit content
-                                : { ...pageData, question: question };       // Send extracted content for general pages
+                                ? { url: pageData.url, question: question, request_id: requestId }  // Let server fetch Reddit content
+                                : { ...pageData, question: question, request_id: requestId };       // Send extracted content for general pages
 
                             // Send to server
                             fetch('http://localhost:5000/start-scrape-summarize', {
@@ -78,7 +79,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         }).then(async response => {
                         if (response.ok) {
                             sendResponse({ success: true });
-                            const eventSource = new EventSource('http://localhost:5000/stream-summary');
+                            const eventSource = new EventSource(`http://localhost:5000/stream-summary?request_id=${requestId}`);
 
                             eventSource.onmessage = (event) => {
                                 // Unescape newlines that were escaped for SSE protocol

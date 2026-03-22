@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from flask import Flask, request, Response, stream_with_context
 from flask_cors import CORS
 from openai import OpenAI
-import tiktoken
+import requests as http_requests
 import trafilatura
 
 import RedditPostDownloader.RedditArchiver as ra
@@ -24,12 +24,23 @@ app = Flask(__name__)
 CORS(app)
 
 load_dotenv()
-client = OpenAI(base_url="http://localhost:8080/v1", api_key="not-needed")
+LLAMA_BASE = "http://localhost:8080"
+client = OpenAI(base_url=f"{LLAMA_BASE}/v1", api_key="not-needed")
 
-enc = tiktoken.get_encoding("o200k_base")
 
-model = "Qwen3-8B-Q8_0"  # 8B model with Q8 quantization
-response = None
+def tokenize(text):
+    """Tokenize text using the llama-server's native tokenizer."""
+    resp = http_requests.post(f"{LLAMA_BASE}/tokenize", json={"model": model, "content": text})
+    return resp.json()["tokens"]
+
+
+def detokenize(tokens):
+    """Detokenize tokens using the llama-server's native tokenizer."""
+    resp = http_requests.post(f"{LLAMA_BASE}/detokenize", json={"model": model, "tokens": tokens})
+    return resp.json()["content"]
+
+model = "gpt-oss-20b-Q8_0"
+responses = {}  # Dict of request_id -> response stream
 
 
 def is_reddit_url(url):
@@ -90,8 +101,8 @@ def extract_general_webpage(url):
         return None, None
 
 
-def start_stream(html, question=""):
-    global response
+def start_stream(html, request_id, question=""):
+    global responses
 
     # Log content length for debugging
     print(f"Received HTML content length: {len(html)} characters")
@@ -130,24 +141,25 @@ def start_stream(html, question=""):
             + "Skip any section if there is no relevant content. Do not add titles, introductions, or extra headers.\n\n"
             + html
         )
-    # Trim content to fit 16k context limit (using 12k to be safe)
+    # Trim content to fit 45k context limit
     # Reserve tokens for: system message (~40), instructions (~100), response (~3500)
-    encoded = enc.encode(user_content)
-    max_tokens = 12000
+    encoded = tokenize(user_content)
+    max_tokens = 45000
     was_truncated = len(encoded) > max_tokens
-    user_content = enc.decode(encoded[:max_tokens])
+    if was_truncated:
+        user_content = detokenize(encoded[:max_tokens])
 
     if was_truncated:
         user_content += "\n\n---\n[Content truncated to fit context size limits]"
 
     print(f"Using model: {model}")
 
-    response = client.chat.completions.create(
+    responses[request_id] = client.chat.completions.create(
         model=model,
         messages=[
             {
                 "role": "system",
-                "content": "You are a summary assistant, skilled in summarizing posts and comments. Ensure the generated summary is concise and captures the essence of the content.",
+                "content": "You are a summary assistant, skilled in summarizing posts and comments. Ensure the generated summary is concise and captures the essence of the content. Be direct and to the point - avoid over-explaining or excessive elaboration.",
             },
             {"role": "user", "content": user_content},
         ],
@@ -156,74 +168,58 @@ def start_stream(html, question=""):
     )
 
 
-def stream_summarization():
-    global response
+def stream_summarization(request_id):
+    global responses
 
-    while response is None:
+    # Wait for this specific request's response
+    timeout = 30  # 30 seconds max wait
+    waited = 0
+    while request_id not in responses:
         sleep(0.1)
+        waited += 0.1
+        if waited > timeout:
+            yield f"data: Error: Request timed out\n\n"
+            return
 
+    response = responses[request_id]
     in_thinking = False
-    buffer = ""
-    thinking_started = False
 
     for chunk in response:
-        content = chunk.choices[0].delta.content or ""
-        if not content:
+        delta = chunk.choices[0].delta
+
+        # Handle reasoning/thinking content (via reasoning_content field or <think> tags)
+        reasoning = getattr(delta, "reasoning_content", None)
+        if reasoning:
+            if not in_thinking:
+                yield f"data: __THINKING_START__\n\n"
+                in_thinking = True
+            escaped = reasoning.replace("\n", "\\n")
+            yield f"data: __THINKING_CONTENT__{escaped}\n\n"
             continue
 
-        # Check for thinking tags FIRST before processing
-        if "<think>" in content and not thinking_started:
-            # Split content at thinking tag
-            before_think = content.split("<think>", 1)[0]
-            after_think = content.split("<think>", 1)[1] if "<think>" in content else ""
-
-            # Send content before thinking tag if any
-            if before_think:
-                escaped = before_think.replace("\n", "\\n")
-                yield f"data: {escaped}\n\n"
-
-            # Start thinking mode
-            yield f"data: __THINKING_START__\n\n"
-            in_thinking = True
-            thinking_started = True
-            content = after_think
-            if not content:
-                continue
-
-        # Check for thinking end
-        if "</think>" in content:
-            # Split content at end tag
-            during_think = content.split("</think>", 1)[0]
-            after_think = (
-                content.split("</think>", 1)[1] if "</think>" in content else ""
-            )
-
-            # Send thinking content if any
-            if during_think:
-                escaped = during_think.replace("\n", "\\n")
-                yield f"data: __THINKING_CONTENT__{escaped}\n\n"
-
-            # End thinking mode
-            in_thinking = False
-            yield f"data: __THINKING_END__\n\n"
-            content = after_think
-            if not content:
-                continue
-
-        # Send regular content immediately (don't buffer)
+        # Handle regular content
+        content = delta.content
         if content:
-            escaped = content.replace("\n", "\\n")
+            # Close thinking block when we transition to content
             if in_thinking:
-                yield f"data: __THINKING_CONTENT__{escaped}\n\n"
-            else:
-                yield f"data: {escaped}\n\n"
+                yield f"data: __THINKING_END__\n\n"
+                in_thinking = False
+            escaped = content.replace("\n", "\\n")
+            yield f"data: {escaped}\n\n"
 
-    # Send footer without escaping since it's intentional formatting
+    # Close unclosed thinking block
+    if in_thinking:
+        yield f"data: __THINKING_END__\n\n"
+
+    # Send footer
     yield f"data: \n"
     yield f"data: ---\n"
     yield f"data: \n"
     yield f"data: **Powered by {model}**\n\n"
-    response = None
+
+    # Clean up this request's response
+    if request_id in responses:
+        del responses[request_id]
 
 
 @app.route('/health')
@@ -233,9 +229,12 @@ def health():
 
 @app.route('/start-scrape-summarize', methods=['POST'])
 def start_scrape_summarize():
+    import uuid
     data = request.json
     url = data.get("url")
     question = data.get("question", "")
+    request_id = data.get("request_id") or str(uuid.uuid4())
+    print(f"Start request with request_id: {request_id}")
 
     # Check if content was already extracted by the extension
     if "content" in data:
@@ -269,7 +268,7 @@ def start_scrape_summarize():
         return Response(status=400, response=error_msg, content_type='text/plain')
 
     try:
-        start_stream(html, question)
+        start_stream(html, request_id, question)
     except Exception as e:
         error_msg = str(e)
         # Extract cleaner error message from OpenAI-style errors
@@ -281,12 +280,23 @@ def start_scrape_summarize():
         print(f"ERROR starting stream: {error_msg}")
         return Response(status=500, response=error_msg, content_type='text/plain')
 
-    return Response(status=200)
+    return Response(status=200, response=request_id, content_type='text/plain')
 
 
 @app.route('/stream-summary', methods=['GET'])
 def stream_summary():
-    return Response(stream_with_context(stream_summarization()), content_type='text/event-stream')
+    request_id = request.args.get('request_id')
+    print(f"Stream request received for request_id: {request_id}")
+    if not request_id:
+        error_response = Response(status=400, response="Missing request_id parameter", content_type='text/plain')
+        error_response.headers['Access-Control-Allow-Origin'] = '*'
+        return error_response
+    response = Response(stream_with_context(stream_summarization(request_id)), content_type='text/event-stream')
+    # Explicitly set CORS headers for SSE streaming
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['Connection'] = 'keep-alive'
+    return response
 
 
 if __name__ == '__main__':
