@@ -286,28 +286,45 @@ function displaySummaryChunk(chunk) {
 
     // Handle thinking markers
     if (chunk === '__THINKING_START__') {
-        const header = document.createElement('h2');
-        header.textContent = '💭 Thinking Process';
-        header.style.cssText = `
-            color: #FF4500;
-            font-size: 18px;
-            font-weight: 600;
-            margin: 20px 0 12px 0;
-            padding-bottom: 8px;
-            border-bottom: 2px solid #FF4500;
+        const details = document.createElement('details');
+        details.id = 'thinking-details';
+        details.style.cssText = `
+            margin: 16px 0;
+            background: rgba(255, 69, 0, 0.08);
+            border: 1px solid rgba(255, 69, 0, 0.25);
+            border-radius: 6px;
+            overflow: hidden;
         `;
-        summaryDiv.appendChild(header);
+
+        const summary = document.createElement('summary');
+        summary.textContent = '💭 Thinking Process';
+        summary.style.cssText = `
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 13px;
+            font-weight: 500;
+            padding: 8px 12px;
+            cursor: pointer;
+            user-select: none;
+            list-style: none;
+        `;
+        // Hide default marker
+        summary.addEventListener('mouseenter', () => summary.style.color = 'rgba(255, 255, 255, 0.85)');
+        summary.addEventListener('mouseleave', () => summary.style.color = 'rgba(255, 255, 255, 0.6)');
+        details.appendChild(summary);
 
         const content = document.createElement('div');
         content.id = 'thinking-content';
         content.style.cssText = `
-            color: rgba(255, 255, 255, 0.7);
-            font-size: 14px;
-            line-height: 1.6;
+            color: rgba(255, 255, 255, 0.55);
+            font-size: 13px;
+            line-height: 1.5;
             font-style: italic;
-            margin-bottom: 20px;
+            padding: 0 12px 10px 12px;
+            border-top: 1px solid rgba(255, 69, 0, 0.15);
+            white-space: pre-wrap;
         `;
-        summaryDiv.appendChild(content);
+        details.appendChild(content);
+        summaryDiv.appendChild(details);
         return;
     }
 
@@ -321,12 +338,11 @@ function displaySummaryChunk(chunk) {
     }
 
     if (chunk === '__THINKING_END__') {
-        // Check if thinking content is empty, remove if so
+        // Check if thinking content is empty, remove entire details if so
         const thinkingContent = document.getElementById('thinking-content');
         if (thinkingContent && !thinkingContent.textContent.trim()) {
-            const header = thinkingContent.previousElementSibling;
-            if (header) header.remove();
-            thinkingContent.remove();
+            const details = document.getElementById('thinking-details');
+            if (details) details.remove();
         }
         return;
     }

@@ -133,12 +133,10 @@ def start_stream(html, request_id, question=""):
     else:
         # Regular summary mode
         user_content = (
-            "Summarize the content below. Use ONLY ## for section headers (no other header levels). "
-            + "For pages WITH comments: Create sections for ## Post Summary, ## Common Comments, and ## Controversial Comments. "
-            + "If there are only a few comments, use a single ## Comments section instead. "
-            + "For pages WITHOUT comments (articles, blogs, etc.), or with NO comments: Create only ## Summary section with the main content. "
-            + "Do NOT create comment sections if there are no comments. "
-            + "Skip any section if there is no relevant content. Do not add titles, introductions, or extra headers.\n\n"
+            "TL;DR this in max 5 sentences total. Use ONLY ## for section headers. "
+            + "For pages WITH comments: ## Post Summary (1-2 sentences), then ## Comments (2-3 sentences). "
+            + "For pages WITHOUT comments: only ## Summary. No bullet lists. "
+            + "Do NOT create comment sections if there are no comments.\n\n"
             + html
         )
     # Trim content to fit 45k context limit
@@ -159,7 +157,10 @@ def start_stream(html, request_id, question=""):
         messages=[
             {
                 "role": "system",
-                "content": "You are a summary assistant, skilled in summarizing posts and comments. Ensure the generated summary is concise and captures the essence of the content. Be direct and to the point - avoid over-explaining or excessive elaboration.",
+                "content": "You write very short TL;DRs of discussions. Casual and snarky. "
+                "STRICT RULES: Maximum 5 sentences total. No bullet lists. No phrases like 'standout moments', "
+                "'the split comes over', 'in the end', 'bottom line', 'the consensus'. "
+                "Just say what happened and what people think. Drop a quote if one's funny.",
             },
             {"role": "user", "content": user_content},
         ],
