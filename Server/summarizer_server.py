@@ -1,3 +1,4 @@
+import datetime
 import logging
 import os
 from time import sleep
@@ -226,6 +227,66 @@ def stream_summarization(request_id):
 @app.route('/health')
 def health():
     return {'status': 'ok'}
+
+
+@app.route('/scrape', methods=['POST'])
+def scrape():
+    """Return extracted page content without summarization (used by the Claude Code web_extract tool)."""
+    url = (request.json or {}).get("url")
+    if not url:
+        return Response(status=400, response="Missing url", content_type='text/plain')
+
+    if is_reddit_url(url) and ra.extract_id(url) is None:
+        return Response(status=400, response="Only Reddit thread URLs (/r/<sub>/comments/<id>/...) are supported. "
+                        "Use reddit_search to find threads or list a subreddit.", content_type='text/plain')
+
+    try:
+        if is_reddit_url(url):
+            html, _ = ra.scrape_url(url)
+        else:
+            html, _ = extract_general_webpage(url)
+    except (Exception, SystemExit) as e:  # RedditArchiver raises SystemExit on errors
+        print(f"ERROR scraping {url}: {e!r}")
+        return Response(status=502, response=f"Failed to fetch: {e!r}", content_type='text/plain')
+
+    if not html:
+        return Response(status=502, response="No content extracted from the page", content_type='text/plain')
+
+    return Response(status=200, response=html, content_type='text/html; charset=utf-8')
+
+
+@app.route('/reddit-search', methods=['POST'])
+def reddit_search():
+    """Search Reddit (or list a subreddit) via the API; returns thread metadata as JSON."""
+    data = request.json or {}
+    query = data.get("query", "")
+    subreddit = data.get("subreddit") or "all"
+    sort = data.get("sort") or ("relevance" if query else "hot")
+    time_filter = data.get("time_filter", "all")
+    limit = min(int(data.get("limit", 15)), 50)
+
+    try:
+        sub = ra.reddit.subreddit(subreddit)
+        if query:
+            listing = sub.search(query, sort=sort, time_filter=time_filter, limit=limit)
+        elif sort == "top":
+            listing = sub.top(time_filter=time_filter, limit=limit)
+        else:
+            listing = getattr(sub, sort)(limit=limit)  # hot / new / rising / controversial
+        results = [{
+            "title": s.title,
+            "url": f"https://www.reddit.com{s.permalink}",
+            "subreddit": s.subreddit.display_name,
+            "score": s.score,
+            "num_comments": s.num_comments,
+            "created": datetime.datetime.fromtimestamp(s.created_utc, datetime.timezone.utc).strftime("%Y-%m-%d"),
+            "snippet": s.selftext[:200],
+        } for s in listing]
+    except Exception as e:
+        print(f"ERROR reddit search {data}: {e!r}")
+        return Response(status=502, response=f"Reddit search failed: {e!r}", content_type='text/plain')
+
+    return {"results": results}
 
 
 @app.route('/start-scrape-summarize', methods=['POST'])
